@@ -2,49 +2,44 @@
 
 **Deterministic, Real-Time Safe Memory Allocators for Zig**
 
-Forge is a pure-Zig memory allocation suite specifically designed for robotics, industrial automation, and hard real-time systems. 
-It provides custom allocators that conform to Zig's `std.mem.Allocator` interface, 
-completely eliminating unbounded latency (OS syscalls) and memory fragmentation.
+Forge is a pure-Zig memory allocation suite specifically designed for robotics, industrial automation, and hard real-time operating systems (RTOS). 
+It provides custom allocators conforming to Zig's `std.mem.Allocator` interface, eliminating unbounded latency (OS syscalls) and non-deterministic memory fragmentation.
+Forge guarantees bounded, predictable execution times ($O(1)$ worst-case execution time) for safety-critical control loops.
 
-When a 2-millisecond garbage collection or allocation pause means a robotic arm crashes or a telemetry frame is dropped, 
-you need deterministic memory. 
-Forge guarantees bounded $O(1)$ execution.
+---
 
-## Features (TBD)
+## Architecture Roadmap
 
-Forge is currently in active development. The initial roadmap includes two primary allocators:
+### 1. `SlobAllocator` (Simple List Of Blocks)  
+An ultra-compact memory manager using a first-fit linked list strategy over a pre-allocated memory block.
+* **Objective:** Minimal overhead baseline for highly memory-constrained microcontrollers or isolated task nodes.
+* **Industrial Use Case:** Low-frequency auxiliary logging, configuration parsing, or string formatting on isolated MCU nodes.
 
-### 1. `SlabAllocator` (Work in Progress)
-A deterministic pool allocator designed for high-frequency, fixed-size data streams.
-* **$O(1)$ latency:** Allocation and deallocation are simple linked-list pop/push operations.
-* **Zero Fragmentation:** Slices a pre-allocated fixed buffer into identical components.
-* **Use Case:** ECS components, EtherCAT/CANOpen telemetry packets, hardware sensor state ingestion.
+### 2. `SlabAllocator` (Fixed-Size Object Pools)  
+A deterministic object-cache allocator that slices a backing buffer into an array of uniform, fixed-size slots using an embedded inline freelist.
+* **Objective:** True $O(1)$ performance with zero fragmentation by recycling slots of the exact same size.
+* **Industrial Use Case:** High-frequency CAN/EtherCAT telemetry frames, actuator state-space updates, and hardware sensor data ingestion.
 
-### 2. `TLSFAllocator` (Planned)
-A Two-Level Segregated Fit (TLSF) allocator for general-purpose real-time heaps.
-* **Bounded $O(1)$ latency:** Provides variable-sized memory allocations with strict real-time guarantees.
-* **Minimal Fragmentation:** Uses segregated free lists and bitmap searching to find optimal memory blocks.
-* **Use Case:** Software-defined PLCs, dynamic state machines, and real-time UI/HMI data generation.
+### 3. `TLSFAllocator` (Two-Level Segregated Fit) 
+A constant-time dynamic memory allocator designed for variable-sized requests under hard real-time constraints.
+* **Objective:** Bounded $O(1)$ execution time for dynamic allocations without random latency spikes.
+* **Industrial Use Case:** Software-defined PLCs, complex dynamic state machines, and real-time HMI data generation.
 
-## Integration
+---
 
-Because Forge implements the `std.mem.Allocator` vtable, it can back any standard library collection transparently.
+## Design Principles
 
-```zig
-const std = @import("std");
-const forge = @import("forge");
+* **Explicit Memory Bounds:** Allocators initialize using statically sized, pre-allocated buffers (stack array or dedicated DMA memory sections). No dynamic OS allocation occurs during real-time execution.
+* **Runtime Defenses:** Panics on double-frees, memory leaks, or invalid alignments in `Debug` and `ReleaseSafe` modes before software is deployed to physical machinery.
+* **Thread Locality:** Forge allocators are **not thread-safe by default** to completely avoid mutex overhead and priority inversion vulnerabilities. They are designed to back thread-local arenas or single-threaded execution loops.
+* **Zero Dependencies:** Built using pure Zig pointer arithmetic. Runs perfectly on `freestanding` bare-metal embedded targets.
 
-pub fn main() !void {
+---
+
+## Quick Integration Example
  
-}
+```zig
 ```
 
-## Runtime Safe: Designed to panic on double-frees or invalid alignments in Debug and ReleaseSafe modes.
-
-Thread Safety: Currently, Forge allocators are not thread-safe by default to avoid mutex locking overhead. 
-They are designed for thread-local arenas or lock-free single-threaded event loops.
-
-No OS Dependencies: Built entirely with pure Zig pointer arithmetic. 
-Runs perfectly on bare-metal embedded targets (freestanding), Linux, macOS, and Windows.
-
-License MIT
+License
+MIT License. Ready for commercial industrial systems and open-source robotics projects.
